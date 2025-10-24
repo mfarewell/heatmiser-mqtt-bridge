@@ -211,3 +211,4 @@ __marimo__/
 options.json    
 logs/*
 *.log
+*.conf
