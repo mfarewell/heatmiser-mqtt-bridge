@@ -1,0 +1,34 @@
+{ 
+  "heatmiser": {
+    "device": null, 
+    "ip": "192.168.1.xx",
+    "port": "1024",
+    "url": null
+  },   
+  "mqtt": {
+    "broker": "192.168.1.xx", 
+    "port": 1883,
+    "username": "mqttuser",
+    "password": "yourpassword"
+  },
+  "zones": [ 
+    { "id": 1, "name": "Office", "type": "prt", "sensor_type": "air" },
+    { "id": 2, "name": "Toilet", "type": "prt", "sensor_type": "air" },    
+    { "id": 4, "name": "Kitchen", "type": "prt", "sensor_type": "floor" },
+    { "id": 5, "name": "Diningroom", "type": "prt", "sensor_type": "air" },
+    { "id": 6, "name": "Hallway", "type": "prthw", "sensor_type": "air" },
+    { "id": 7, "name": "Livingroom", "type": "prt", "sensor_type":"air" },
+    { "id": 8, "name": "Bed1", "type": "prt", "sensor_type": "air" },
+    { "id": 9, "name": "Masterbed", "type": "prt", "sensor_type": "air" },
+    { "id": 10, "name": "Bathroom", "type": "prt", "sensor_type": "air" },
+    { "id": 11, "name": "Bed2", "type": "prt", "sensor_type": "air" },
+    { "id": 12, "name": "Bed3", "type": "prt", "sensor_type": "air" }
+  ],
+  "hotwater": {
+    "zone_id": 6, 
+    "name": "Boiler"
+  },
+  "poll_interval": 120,
+  "log_level": "DEBUG"
+}
+  
