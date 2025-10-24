@@ -106,8 +106,7 @@ class HeatmiserThermostat(object):
         except yaml.YAMLError as exc:
             logging.info("The YAML file is invalid: %s", exc)
         self.conn = uh1.registerThermostat(self)
-        self.dcb = ""
-        self.read_dcb()
+        self.dcb = ""        
 
     def _hm_form_message(
         self, thermostat_id, protocol, source, function, start, payload

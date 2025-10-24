@@ -61,7 +61,7 @@ class HeatmiserMqttBridge:
         self.mqtt.connect(mqtt_cfg['broker'], mqtt_cfg['port'])
         self.mqtt.loop_start()
 
-        # Publish discovery
+        # Publish discovery to MQTT
         for name, zone in self.zones.items():
             self.publish_discovery(name, zone)
 
