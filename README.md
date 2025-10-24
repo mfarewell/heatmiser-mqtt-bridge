@@ -5,7 +5,7 @@ This project makes extensive use of Neil Trimboy and laterly Andy Lockran https:
 
 The software is connects to Heatmiser V3 thermostats via a UH1 and a serial connection. Polls the thermostats at regular intervals and publishes their current state to MQTT that can be readily accessed in Home Assistant. The state and temperature of the thermostats can similarly be updated via Home Assisstant and MQTT. I imagine the code could be adapted to work with other Home Automation systems such as Open Hab but I have not tried as yet.
 
-##Installation
+## Installation
 This application has been developed using Python 3 you will need to install pyserial, importlib-resources, yaml, serial-asyncio and paho-mqtt. In a debian based linux you could:
 ```
 sudo apt install pyserial
