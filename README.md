@@ -1,2 +1,34 @@
 # heatmiser-mqtt-bridge
 Bridge between Heatmiser UH1 Thermostats to MQTT for home automation control
+
+This project makes extensive use of Neil Trimboy and laterly Andy Lockran https://github.com/andylockran/heatmiserV3/tree/main heatmiser code which has been modified slightly to make it more relevant for this use case. 
+
+The software is connects to Heatmiser V3 thermostats via a UH1 and a serial connection. Polls the thermostats at regular intervals and publishes their current state to MQTT that can be readily accessed in Home Assistant. The state and temperature of the thermostats can similarly be updated via Home Assisstant and MQTT. I imagine the code could be adapted to work with other Home Automation systems such as Open Hab but I have not tried as yet.
+
+##Installation
+This application has been developed using Python 3 you will need to install pyserial, importlib-resources, yaml, serial-asyncio and paho-mqtt. In a debian based linux you could:
+```
+sudo apt install pyserial
+sudo apt install python3-importlib-resources
+sudo apt install python3-yaml
+sudo apt install python3-serial-asyncio
+sudo apt-get install python3-paho-mqtt
+```
+Update options.json.example to match your local environment and rename to options.json
+
+Then run:
+```
+python3 main.py
+```
+These heatmiser thermostats and the UHI controller are sensitive to mid air collisions, so the strategy in this application is to have a queue. A request to change a state of a thermostat or boiler control, or to poll the current state of the thermostats gets added to a queue. State changes are prioritised over polling, but there is a delay in actions requested as each has to be tackled one at a time.
+
+In my case I have a lot of thermostats, so polling takes a while. The code could be improved to add individual thermostat polls to the queue so that polling could be interupted. Once a state change is made MQTT is updated directly rather than waiting for a poll so that Home Assistant controls feel responsive.
+
+There are delays built into the code at the moment to reduce the chance of midair collision, these could be reduced through experimentation.
+
+The code needs refinement but is operating effectively for me without CRC error. 
+
+Once the application is running you should see the topics and events in MQTT. In Home Assistant you should be able to add your thermostats from the MQTT device section to your dashboard. Clicking the fire symbol takes your thermostat out of frost mode which is the same as clicking the phyical power button on the thermostat, clicking the power button on th HA tile will turn frost mode back on. The thermostat is idle when it is not calling for heat. It will call for heat when the target temperature is above the actual room temperature.
+
+<img width="475" height="453" alt="hallwayThermostat" src="https://github.com/user-attachments/assets/799c6ea3-757e-4a42-b317-42ea98d0b34a" />
+
