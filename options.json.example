@@ -1,12 +1,12 @@
 { 
   "heatmiser": {
-    "device": null, # Serial device path, e.g. "/dev/ttyUSB0" or null for IP
+    "device": null, 
     "ip": "192.168.1.xx",
     "port": "1024",
-    "url": null # URL path, e.g. "/api/" or null
+    "url": null
   },   
   "mqtt": {
-    "broker": "192.168.1.xx", # MQTT broker IP address adress of the Home Assistant server if that is where MQTT is hosted
+    "broker": "192.168.1.xx", 
     "port": 1883,
     "username": "mqttuser",
     "password": "yourpassword"
@@ -25,10 +25,10 @@
     { "id": 12, "name": "Bed3", "type": "prt", "sensor_type": "air" }
   ],
   "hotwater": {
-    "zone_id": 6, # Zone ID for hot water control via a prthw thermostat
+    "zone_id": 6, 
     "name": "Boiler"
   },
-  "poll_interval": 120, # Poll interval in seconds how regularly to poll the Heatmiser system
+  "poll_interval": 120,
   "log_level": "DEBUG"
 }
   
