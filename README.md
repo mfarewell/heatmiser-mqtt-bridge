@@ -16,6 +16,44 @@ sudo apt-get install python3-paho-mqtt
 ```
 Update options.json.example to match your local environment and rename to options.json
 
+### annotated options.json with comments explaining the fields (comments not supported in json)
+```
+{ 
+  "heatmiser": {
+    "device": null, # Serial device path, e.g. "/dev/ttyUSB0" or null for IP
+    "ip": "192.168.1.xx",
+    "port": "1024",
+    "url": null # URL path, e.g. "/api/" or null
+  },   
+  "mqtt": {
+    "broker": "192.168.1.xx", # MQTT broker IP address adress of the Home Assistant server if that is where MQTT is hosted
+    "port": 1883,
+    "username": "mqttuser",
+    "password": "yourpassword"
+  },
+  "zones": [ 
+    { "id": 1, "name": "Office", "type": "prt", "sensor_type": "air" },
+    { "id": 2, "name": "Toilet", "type": "prt", "sensor_type": "air" },    
+    { "id": 4, "name": "Kitchen", "type": "prt", "sensor_type": "floor" },#floor sensor type for underloor heating
+    { "id": 5, "name": "Diningroom", "type": "prt", "sensor_type": "air" },
+    { "id": 6, "name": "Hallway", "type": "prthw", "sensor_type": "air" },#prthw sensor type allows control of boiler
+    { "id": 7, "name": "Livingroom", "type": "prt", "sensor_type":"air" },
+    { "id": 8, "name": "Bed1", "type": "prt", "sensor_type": "air" },
+    { "id": 9, "name": "Masterbed", "type": "prt", "sensor_type": "air" },
+    { "id": 10, "name": "Bathroom", "type": "prt", "sensor_type": "air" },
+    { "id": 11, "name": "Bed2", "type": "prt", "sensor_type": "air" },
+    { "id": 12, "name": "Bed3", "type": "prt", "sensor_type": "air" }
+  ],
+  "hotwater": {
+    "zone_id": 6, # Zone ID for hot water control via a prthw thermostat
+    "name": "Boiler"
+  },
+  "poll_interval": 120, # Poll interval in seconds how regularly to poll the Heatmiser system
+  "log_level": "DEBUG"
+}
+```
+
+
 Then run:
 ```
 python3 main.py
@@ -31,4 +69,10 @@ The code needs refinement but is operating effectively for me without CRC error.
 Once the application is running you should see the topics and events in MQTT. In Home Assistant you should be able to add your thermostats from the MQTT device section to your dashboard. Clicking the fire symbol takes your thermostat out of frost mode which is the same as clicking the phyical power button on the thermostat, clicking the power button on th HA tile will turn frost mode back on. The thermostat is idle when it is not calling for heat. It will call for heat when the target temperature is above the actual room temperature.
 
 <img width="475" height="453" alt="hallwayThermostat" src="https://github.com/user-attachments/assets/799c6ea3-757e-4a42-b317-42ea98d0b34a" />
+
+I have currently taken a very simple appoach for the boiler and just set it up as a simple switch which can be scheduled through automations in Home Assisstant. The heatmiser protocol does support scheduling but I have not implemented it.
+
+<img width="471" height="130" alt="image" src="https://github.com/user-attachments/assets/c4c4b2b2-6a61-43be-a1f2-4aef43d8864b" />
+
+
 
