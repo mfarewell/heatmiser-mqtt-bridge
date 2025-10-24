@@ -209,6 +209,5 @@ __marimo__/
 #Project ignores
 .vscode/
 options.json    
-logs/*
 *.log
 *.conf
