@@ -52,7 +52,7 @@ Update options.json.example to match your local environment and rename to option
   "log_level": "DEBUG"
 }
 ```
-
+Create a logs folder in the root directory
 
 Then run:
 ```
