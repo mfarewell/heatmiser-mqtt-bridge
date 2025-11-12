@@ -8,7 +8,7 @@ The software is connects to Heatmiser V3 thermostats via a UH1 and a serial conn
 ## Installation
 This application has been developed using Python 3 you will need to install pyserial, importlib-resources, yaml, serial-asyncio and paho-mqtt. In a debian based linux you could:
 ```
-sudo apt install pyserial
+sudo apt install python3-serial
 sudo apt install python3-importlib-resources
 sudo apt install python3-yaml
 sudo apt install python3-serial-asyncio
