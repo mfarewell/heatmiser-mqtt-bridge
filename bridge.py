@@ -89,11 +89,13 @@ class HeatmiserMqttBridge:
             if topic.endswith("hw_state"):
                 cmd = payload.upper()
                 if cmd == "ON":
+                    self._publish_hotwater_state(cmd) #publish straight back to aid UI
                     self.enqueue_task(0, thermo.set_hotwater_state, args=(thermo.HotWaterWriteState.ON,),
-                                      desc="HotWater ON", callback=lambda _: self._publish_hotwater_state(cmd))
+                                      desc="HotWater ON")
                 elif cmd == "OFF":
+                    self._publish_hotwater_state(cmd)
                     self.enqueue_task(0, thermo.set_hotwater_state, args=(thermo.HotWaterWriteState.OFF,),
-                                      desc="HotWater OFF", callback=lambda _: self._publish_hotwater_state(cmd))
+                                      desc="HotWater OFF")
                 else:
                     LOG.warning("Invalid hotwater payload: %s", payload)                
             return
@@ -142,7 +144,7 @@ class HeatmiserMqttBridge:
             try:
                 LOG.debug("Executing task: %s [%s]", desc, "poll" if is_poll else "command")
                 result = self.with_lock(lambda: func(*args))
-                if callback:
+                if callback is not None:
                     try:
                         callback(result)
                     except Exception as e:
