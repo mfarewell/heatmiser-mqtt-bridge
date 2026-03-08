@@ -91,11 +91,11 @@ class HeatmiserMqttBridge:
                 if cmd == "ON":
                     self._publish_hotwater_state(cmd) #publish straight back to aid UI
                     self.enqueue_task(0, thermo.set_hotwater_state, args=(thermo.HotWaterWriteState.ON,),
-                                      desc="HotWater ON")
+                                      desc="HotWater ON", is_poll=False)
                 elif cmd == "OFF":
                     self._publish_hotwater_state(cmd)
                     self.enqueue_task(0, thermo.set_hotwater_state, args=(thermo.HotWaterWriteState.OFF,),
-                                      desc="HotWater OFF")
+                                      desc="HotWater OFF", is_poll=False)
                 else:
                     LOG.warning("Invalid hotwater payload: %s", payload)                
             return
@@ -105,15 +105,16 @@ class HeatmiserMqttBridge:
             if topic.startswith(f"home/heatmiser/{name}/set/"):
                 thermo = self.thermostats[name]
 
-                if topic.endswith("target"):
+                if topic.endswith("target"):                    
                     try:
                         val = round(float(payload))
                         expected = {"target": val}
                         expected_copy = expected.copy()
+                        self._publish_single_state(name, expected_copy)
                         self.enqueue_task(
                             0, thermo.set_target_temp, args=(val,),
                             desc=f"{name} set target {val}°C",
-                            callback=lambda _: self._publish_single_state(name, expected_copy)
+                            is_poll=False
                         )                        
                     except ValueError:
                         LOG.warning("Invalid target temp for %s: %s", name, payload)
@@ -122,10 +123,11 @@ class HeatmiserMqttBridge:
                     frost = payload.upper() == "OFF"
                     expected = {"mode": payload.lower()}
                     expected_copy = expected.copy()
+                    self._publish_single_state(name, expected_copy)
                     self.enqueue_task(
                         0, thermo.set_frost_protect_mode, args=(frost,),
                         desc=f"{name} set mode",
-                        callback=lambda _: self._publish_single_state(name, expected_copy)
+                        is_poll=False
                     )
                 return
 
