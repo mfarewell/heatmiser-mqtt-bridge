@@ -7,7 +7,10 @@ import serial
 import yaml
 import logging
 from . import constants
-import importlib_resources
+try:
+    from importlib import resources as importlib_resources
+except ImportError:
+    import importlib_resources
 from enum import IntEnum
 
 config_yml = importlib_resources.files('heatmiserv3').joinpath('config.yml')
@@ -415,33 +418,41 @@ class HeatmiserThermostat(object):
 
     def set_frost_protect_mode(self, onoff):
         self._hm_send_address(self.address, 23, onoff, 1)
+        if isinstance(self.dcb, dict) and 23 in self.dcb:
+            self.dcb[23]["value"] = 1 if onoff else 0
         return True
 
     def set_frost_protect_temp(self, frost_temp):
-        if 17 < frost_temp < 7:
-            logging.info("Refusing to set temp outside of allowed range")
+        if not (7 <= frost_temp <= 17):
+            logging.info("Refusing to set temp outside of allowed range: %s", frost_temp)
             return False
         else:
             self._hm_send_address(self.address, 17, frost_temp, 1)
+            if isinstance(self.dcb, dict) and 17 in self.dcb:
+                self.dcb[17]["value"] = frost_temp
             return True
 
     def set_target_temp(self, temperature):
         """
         Sets the target temperature, to the requested int
         """
-        if 35 < temperature < 5:
-            logging.info("Refusing to set temp outside of allowed range")
+        if not (5 <= temperature <= 35):
+            logging.info("Refusing to set temp outside of allowed range: %s", temperature)
             return False
         else:
             self._hm_send_address(self.address, 18, temperature, 1)
+            if isinstance(self.dcb, dict) and 18 in self.dcb:
+                self.dcb[18]["value"] = temperature
             return True
 
     def set_floormax_temp(self, floor_max):
-        if 45 < floor_max < 20:
-            logging.info("Refusing to set temp outside of allowed range")
+        if not (20 <= floor_max <= 45):
+            logging.info("Refusing to set temp outside of allowed range: %s", floor_max)
             return False
         else:
             self._hm_send_address(self.address, 19, floor_max, 1)
+            if isinstance(self.dcb, dict) and 19 in self.dcb:
+                self.dcb[19]["value"] = floor_max
             return True        
     
     def parse_temperature(self, high_byte: int, low_byte: int) -> float | None:

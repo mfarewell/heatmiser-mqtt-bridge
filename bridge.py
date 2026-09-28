@@ -50,6 +50,14 @@ class HeatmiserMqttBridge:
         self._poll_pending = False
         self._poll_pending_lock = threading.Lock()
 
+        # Setpoint debouncing and tracking
+        self._running = True
+        self.debounce_delay = hm_cfg.get("debounce_delay", 1.0)
+        self._target_timers = {}
+        self._pending_targets = {}
+        self._last_target_times = {}
+        self._target_lock = threading.Lock()
+
         # Start worker thread
         threading.Thread(target=self.worker_thread, daemon=True).start()
 
@@ -106,26 +114,69 @@ class HeatmiserMqttBridge:
                 if topic.endswith("target"):
                     try:
                         val = round(float(payload))
-                        expected = {"target": val}
-                        expected_copy = expected.copy()
-                        self.enqueue_task(
-                            0, thermo.set_target_temp, args=(val,),
-                            desc=f"{name} set target {val}°C",
-                            callback=lambda _: self._publish_single_state(name, expected_copy)
-                        )                        
+                        if not (5 <= val <= 35):
+                            LOG.warning("Invalid target temp (out of range 5-35) for %s: %s", name, payload)
+                            return
+
+                        with self._target_lock:
+                            # If already at this pending or confirmed value, ignore
+                            current_target = thermo.get_target_temp() if thermo.dcb else None
+                            if self._pending_targets.get(name) == val or (self._pending_targets.get(name) is None and current_target == val):
+                                LOG.debug("Target temp for %s already %d°C, skipping", name, val)
+                                return
+
+                            # Cancel existing debounce timer for this zone if running
+                            if name in self._target_timers:
+                                self._target_timers[name].cancel()
+
+                            self._pending_targets[name] = val
+                            self._last_target_times[name] = time.time()
+                            timer = threading.Timer(self.debounce_delay, self._apply_target_temp, args=(name, val))
+                            self._target_timers[name] = timer
+                            timer.start()
+                            LOG.debug("Debouncing target temp for %s -> %d°C (delay %.1fs)", name, val, self.debounce_delay)
+
                     except ValueError:
                         LOG.warning("Invalid target temp for %s: %s", name, payload)
 
                 elif topic.endswith("mode"):
                     frost = payload.upper() == "OFF"
-                    expected = {"mode": payload.lower()}
-                    expected_copy = expected.copy()
+                    expected_mode = "off" if frost else "heat"
                     self.enqueue_task(
                         0, thermo.set_frost_protect_mode, args=(frost,),
-                        desc=f"{name} set mode",
-                        callback=lambda _: self._publish_single_state(name, expected_copy)
+                        desc=f"{name} set mode {expected_mode}",
+                        callback=lambda _: self._publish_single_state(name, {"mode": expected_mode})
                     )
                 return
+
+    def _apply_target_temp(self, name, val):
+        """Called when the debounce timer fires for a zone."""
+        thermo = self.thermostats[name]
+        LOG.info("Debounce elapsed: enqueueing target temp %d°C for %s", val, name)
+        self.enqueue_task(
+            0, thermo.set_target_temp, args=(val,),
+            desc=f"{name} set target {val}°C",
+            callback=lambda res: self._on_target_temp_complete(name, val, res)
+        )
+
+    def _on_target_temp_complete(self, name, val, res):
+        """Handle target temp write completion."""
+        with self._target_lock:
+            # If a newer target was set while this one was executing, do not overwrite/publish
+            if self._pending_targets.get(name) != val:
+                LOG.debug("Target temp for %s has newer pending value (%s != %s), skipping publish",
+                          name, self._pending_targets.get(name), val)
+                return
+            self._pending_targets.pop(name, None)
+            self._target_timers.pop(name, None)
+
+        thermo = self.thermostats[name]
+        if isinstance(thermo.dcb, dict) and 18 in thermo.dcb:
+            thermo.dcb[18]["value"] = val
+
+        # Confirm target temperature to MQTT
+        self.mqtt.publish(f"home/heatmiser/{name}/state/target", val, retain=True)
+        LOG.info("Confirmed target temp for %s: %d°C", name, val)
 
     # ------------------------------------------------------------------
     # Command queue
@@ -137,8 +188,12 @@ class HeatmiserMqttBridge:
 
     def worker_thread(self):
         """Execute commands sequentially, handle callbacks."""
-        while True:
-            priority, _, (func, args, desc, is_poll, callback) = self.task_queue.get()
+        while self._running:
+            try:
+                priority, _, (func, args, desc, is_poll, callback) = self.task_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+
             try:
                 LOG.debug("Executing task: %s [%s]", desc, "poll" if is_poll else "command")
                 result = self.with_lock(lambda: func(*args))
@@ -188,21 +243,19 @@ class HeatmiserMqttBridge:
     # State publishing
     # ------------------------------------------------------------------
     def _publish_single_state(self, name, overrides):
-        """Publish immediate state update for a single thermostat."""
+        """Publish state update for specified keys for a single thermostat."""
         thermo = self.thermostats[name]
-        state = {
-            "temperature": thermo.get_air_temp(),
-            "target": thermo.get_target_temp(),
-            "mode": "off" if thermo.get_run_mode() == "frost" else "heat",
-            "action": "heating" if thermo.get_current_state() else "idle",
-        }
-        state.update(overrides)
-        for key, value in state.items():
+        # Keep internal DCB updated if present
+        if isinstance(thermo.dcb, dict):
+            if "target" in overrides and 18 in thermo.dcb:
+                thermo.dcb[18]["value"] = overrides["target"]
+            if "mode" in overrides and 23 in thermo.dcb:
+                thermo.dcb[23]["value"] = 1 if overrides["mode"] == "off" else 0
+
+        for key, value in overrides.items():
             self.mqtt.publish(f"home/heatmiser/{name}/state/{key}", value, retain=True)
-        LOG.debug(
-            "Immediate MQTT update for %s → temp=%.1f target=%.1f mode=%s action=%s",
-            name, state["temperature"], state["target"], state["mode"], state["action"]
-        )
+            LOG.debug("Immediate MQTT update for %s: %s = %s", name, key, value)
+
     def _publish_hotwater_state(self, hw_state=None):
         """Publish hot water state."""
         if not self.hotwater:
@@ -247,14 +300,26 @@ class HeatmiserMqttBridge:
 
     def _publish_poll_results(self, results):
         """Publish results of poll to MQTT (outside lock)."""
+        now = time.time()
         for name, res in results.items():
             if name == "hotwater" and self.hotwater:
                 if res.get("hw_state") is not None:
                     self.mqtt.publish("home/heatmiser/hotwater/state/hw_state", res['hw_state'], retain=True)
                     LOG.debug("Published polled hot water state")
                 continue
+
             self.mqtt.publish(f"home/heatmiser/{name}/state/temperature", res['temperature'], retain=True)
-            self.mqtt.publish(f"home/heatmiser/{name}/state/target", res['target'], retain=True)
+
+            # Guard against overwriting recently commanded target
+            with self._target_lock:
+                has_pending = name in self._pending_targets
+                is_recent = (now - self._last_target_times.get(name, 0)) < 15.0
+
+            if not has_pending and not is_recent:
+                self.mqtt.publish(f"home/heatmiser/{name}/state/target", res['target'], retain=True)
+            else:
+                LOG.debug("Skipping polled target publish for %s due to recent/pending command", name)
+
             self.mqtt.publish(f"home/heatmiser/{name}/state/mode", res['mode'], retain=True)
             self.mqtt.publish(f"home/heatmiser/{name}/state/action", res['action'], retain=True)            
             LOG.debug("Published polled state for %s", name)
@@ -273,6 +338,8 @@ class HeatmiserMqttBridge:
             "temperature_command_topic": f"home/heatmiser/{name}/set/target",
             "min_temp": 5,
             "max_temp": 30,
+            "temp_step": 1.0,
+            "optimistic": True,
             "modes": ["heat", "off"],
             "mode_state_topic": f"home/heatmiser/{name}/state/mode",
             "mode_command_topic": f"home/heatmiser/{name}/set/mode",
@@ -292,6 +359,7 @@ class HeatmiserMqttBridge:
                 "payload_off": "OFF",
                 "state_on": "ON",
                 "state_off": "OFF",
+                "optimistic": True,
             }
             self.mqtt.publish(switch_topic, json.dumps(switch_payload), retain=True)
             LOG.info("Published hot water discovery for %s", name)
@@ -300,7 +368,7 @@ class HeatmiserMqttBridge:
     # Background polling loop
     # ------------------------------------------------------------------
     def state_loop(self):
-        while True:
+        while self._running:
             try:
                 self.publish_states()
             except Exception as e:
@@ -310,4 +378,17 @@ class HeatmiserMqttBridge:
             if int(time.time()) % 600 < 2:
                 LOG.debug("Queue size: %d", self.task_queue.qsize())
 
-            time.sleep(self.poll_interval)
+            for _ in range(self.poll_interval):
+                if not self._running:
+                    break
+                time.sleep(1)
+
+    def stop(self):
+        """Cancel pending debounce timers and clean up resources."""
+        self._running = False
+        with self._target_lock:
+            for timer in self._target_timers.values():
+                timer.cancel()
+            self._target_timers.clear()
+            self._pending_targets.clear()
+        LOG.info("HeatmiserMqttBridge stopped")

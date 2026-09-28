@@ -51,6 +51,11 @@ def main():
         logging.info(f"🛑 Received signal {signum}, shutting down gracefully...")
         running = False
         try:
+            bridge.stop()
+            logging.info("✅ Stopped bridge debounce timers")
+        except Exception as e:
+            logging.warning(f"Error stopping bridge: {e}")
+        try:
             bridge.mqtt.loop_stop()  # stop MQTT loop
             bridge.mqtt.disconnect()
             logging.info("✅ MQTT disconnected cleanly")
